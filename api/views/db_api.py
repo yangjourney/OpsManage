@@ -9,7 +9,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.contrib.auth.decorators import permission_required
-from OpsManage.tasks.sql import sendSqlNotice
+from OpsManage.tasks.sql import sendOrderNotice
+from orders.models import Order_System
+from OpsManage.data.base import MySQLPool
+from django.http import JsonResponse
+from OpsManage.utils.logger import logger
+from OpsManage.utils import mysql as MySQL
 
 @api_view(['POST' ])
 @permission_required('OpsManage.can_add_database_server_config',raise_exception=True)
@@ -85,32 +90,32 @@ def inc_detail(request, id,format=None):
         snippet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT) 
     
-@api_view(['PUT', 'DELETE'])
-@permission_required('OpsManage.can_change_sql_audit_order',raise_exception=True)
-def sql_order_detail(request, id,format=None):
-    """
-    Retrieve, update or delete a server assets instance.
-    """
-    try:
-        snippet = SQL_Audit_Order.objects.get(id=id)
-    except SQL_Audit_Order.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-    if request.method == 'PUT':
-        if int(request.data.get('order_status')) == 4:
-            sendSqlNotice.delay(id,mask='【已取消】')  
-        elif int(request.data.get('order_status')) == 6:
-            sendSqlNotice.delay(id,mask='【已授权】')  
-        serializer = serializers.AuditSqlOrderSerializer(snippet, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-     
-    elif request.method == 'DELETE':
-        if not request.user.has_perm('OpsManage.can_delete_sql_audit_order'):
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        snippet.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)       
+# @api_view(['PUT', 'DELETE'])
+# @permission_required('OpsManage.can_change_order_systemr',raise_exception=True)
+# def sql_order_detail(request, id,format=None):
+#     """
+#     Retrieve, update or delete a server assets instance.
+#     """
+#     try:
+#         snippet = Order_System.objects.get(id=id)
+#     except Order_System.DoesNotExist:
+#         return Response(status=status.HTTP_404_NOT_FOUND)
+#     if request.method == 'PUT':
+#         if int(request.data.get('order_status')) == 4:
+#             sendOrderNotice.delay(id,mask='【已取消】')  
+#         elif int(request.data.get('order_status')) == 6:
+#             sendOrderNotice.delay(id,mask='【已授权】')  
+#         serializer = serializers.AuditSqlOrderSerializer(snippet, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response(serializer.data)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#      
+#     elif request.method == 'DELETE':
+#         if not request.user.has_perm('OpsManage.can_delete_order_system'):
+#             return Response(status=status.HTTP_403_FORBIDDEN)
+#         snippet.delete()
+#         return Response(status=status.HTTP_204_NO_CONTENT)       
     
     
 @api_view(['POST' ])
@@ -163,3 +168,90 @@ def sql_exec_logs(request, id,format=None):
             return Response(status=status.HTTP_403_FORBIDDEN)
         snippet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+@api_view(['POST','GET'])
+@permission_required('OpsManage.can_read_database_server_config',raise_exception=True)  
+def db_status(request, id,format=None):
+    try:
+        dbServer = DataBase_Server_Config.objects.get(id=id)
+    except DataBase_Server_Config.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)    
+    if request.method == 'POST':
+        MySQL_STATUS = {}
+        MYSQL = MySQLPool(host=dbServer.db_host,port=dbServer.db_port,user=dbServer.db_user,passwd=dbServer.db_passwd,dbName=dbServer.db_name)
+        STATUS = MYSQL.getStatus()
+        GLOBAL = MYSQL.getGlobalStatus()
+        MySQL_STATUS['base'] = STATUS[0] + GLOBAL
+        MySQL_STATUS['pxc'] = STATUS[1] 
+        MySQL_STATUS['master'] = MYSQL.getMasterStatus()
+        MySQL_STATUS['slave'] = MYSQL.getSlaveStatus()
+        return JsonResponse({"code":200,"msg":"success","data":MySQL_STATUS})
+    
+@api_view(['POST','GET'])
+@permission_required('OpsManage.can_read_database_server_config',raise_exception=True)  
+def db_org(request, id,format=None):
+    try:
+        dbServer = DataBase_Server_Config.objects.get(id=id)
+    except DataBase_Server_Config.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)    
+    if request.method == 'POST':
+        MYSQL = MySQLPool(host=dbServer.db_host,port=dbServer.db_port,user=dbServer.db_user,passwd=dbServer.db_passwd,dbName=dbServer.db_name)
+        STATUS = MYSQL.getStatus()
+        pxcServerList = []
+        title = dbServer.db_host + dbServer.db_mark
+        if dbServer.db_mode == 1:name = '单例模式'
+        elif dbServer.db_mode == 2:name = '主从模式'
+        else:
+            name = 'PXC模式'
+            title = dbServer.db_mark
+        MYSQLORG = {
+                    'name': name,
+                    'title': title,
+                    'className': 'product-dept',
+                    'children': []                   
+                }
+        if dbServer.db_mode == 3:
+            for ds in STATUS[1]:
+                if ds.get('name') == 'Wsrep_incoming_addresses':pxcServerList = ds.get('value').split(',')
+            slaveData = {}
+            for ds in MYSQL.getMasterStatus():
+                if ds.get('name') == 'Slave':slaveData[dbServer.db_host+':'+str(dbServer.db_port)] = ds.get('value')  
+            for s in pxcServerList:
+                data = {}
+                host = s.split(':')[0]
+                port = s.split(':')[1]
+                data['name'] = host
+                data['title'] = port
+                data['children'] = []
+                if slaveData.has_key(s):
+                    data['name'] = 'master'
+                    data['title'] = host+':'+port
+                    count = 1
+                    for d in slaveData.get(s):
+                        x = {}
+                        host = d.split(':')[0]
+                        port = d.split(':')[1]
+                        x['name'] = 'slave-' + str(count)
+                        x['title'] =  host+':'+port
+                        count = count + 1
+                        data['children'].append(x)                                                             
+                MYSQLORG['children'].append(data)
+        elif dbServer.db_mode == 2:
+            count = 1
+            for m in MYSQL.getSlaveStatus():
+                if m.get('name') == 'Master_Host':
+                    MYSQLORG['children'].append({"name":'Master-' + str(count),"title":m.get('value')})
+                    count = count + 1
+            for ds in MYSQL.getMasterStatus():
+                if ds.get('name') == 'Slave':
+                    count = 1
+                    for s in ds.get('value'):
+                        x = {}
+                        host = s.split(':')[0]
+                        port = s.split(':')[1]
+                        x['name'] = 'slave-' + str(count)
+                        x['title'] =  host+':'+port 
+                        count = count + 1  
+                        MYSQLORG['children'].append(x)
+        return JsonResponse({"code":200,"msg":"success","data":MYSQLORG})    
+        

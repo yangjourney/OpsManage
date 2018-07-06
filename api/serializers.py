@@ -3,6 +3,8 @@
 from rest_framework import serializers
 from OpsManage.models import *
 from wiki.models import *
+from orders.models import *
+from filemanage.models import *
 from django.contrib.auth.models import Group,User
 
 
@@ -84,8 +86,9 @@ class ProjectConfigSerializer(serializers.ModelSerializer):
         model = Project_Config
         fields = ('id','project_env','project_name','project_local_command',
                   'project_repo_dir','project_dir','project_exclude',
-                  'project_address','project_repertory','project_status',
-                  'project_remote_command','project_number')   
+                  "project_type",'project_address','project_repertory',
+                  'project_status','project_remote_command','project_user',
+                  'project_uuid','project_number')   
 
 class DeployLogsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -127,7 +130,8 @@ class ServerSerializer(serializers.ModelSerializer):
         fields = ('id','ip','hostname','username','port','passwd',
                   'line','cpu','cpu_number','vcpu_number','keyfile',
                   'cpu_core','disk_total','ram_total','kernel',
-                  'selinux','swap','raid','system','assets') 
+                  'selinux','swap','raid','system','assets',
+                  'sudo_passwd') 
 
     def create(self, data):
         if(data.get('assets')):
@@ -145,7 +149,8 @@ class NetworkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Network_Assets
         fields = ('id','ip','bandwidth','port_number','firmware',
-                  'cpu','stone','configure_detail','assets')    
+                  'cpu','stone','configure_detail','assets',
+                  'port','passwd','sudo_passwd','username')    
     def create(self, data):
         if(data.get('assets')):
             assets_data = data.pop('assets')
@@ -171,17 +176,17 @@ class InceptionSerializer(serializers.ModelSerializer):
                   'db_backup_host','db_backup_user','db_backup_port',
                   'db_backup_passwd')   
 
-class AuditSqlOrderSerializer(serializers.ModelSerializer):
+class OrderSerializer(serializers.ModelSerializer):
     class Meta:
-        model = SQL_Audit_Order
-        fields = ('id','order_desc','order_status','order_cancel')         
+        model = Order_System
+        fields = ('id','order_subject','order_status','order_cancel','order_level')         
         
 class DataBaseServerSerializer(serializers.ModelSerializer):
     class Meta:
         model = DataBase_Server_Config
         fields = ('id','db_env','db_name','db_host','db_user',
                   'db_passwd','db_port','db_mark','db_service',
-                  'db_group','db_project','db_type')  
+                  'db_group','db_project','db_type',"db_mode")  
         
         
 class CustomSQLSerializer(serializers.ModelSerializer):
@@ -208,4 +213,27 @@ class CategorySerializer(serializers.ModelSerializer):
 class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
-        fields = ('id','title','content','category','author')   
+        fields = ('id','title','content','category','author')  
+
+
+class UploadFilesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UploadFiles
+        fields = ('file_path', 'file_type')  
+        
+class UploadFilesOrderSerializer(serializers.ModelSerializer):
+    files = UploadFilesSerializer(many=True)
+    class Meta:
+        model = FileUpload_Audit_Order
+        fields = ('id', 'dest_path', 'dest_server',
+                  'chown_user','chown_rwx','files')  
+        
+class DownloadFilesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FileDownload_Audit_Order
+        fields = ('id','order_content', 'dest_server','dest_path') 
+        
+class AnsibleInventorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ansible_Inventory
+        fields = ('id','name', 'desc','user') 

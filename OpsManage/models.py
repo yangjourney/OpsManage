@@ -32,6 +32,7 @@ class Assets(models.Model):
     group = models.SmallIntegerField(blank=True,null=True,verbose_name='使用组')
     business = models.SmallIntegerField(blank=True,null=True,verbose_name='业务类型')
     project = models.SmallIntegerField(blank=True,null=True,verbose_name='项目类型')
+    host_vars = models.TextField(blank=True,null=True,verbose_name='ansible主机变量')
     create_date = models.DateTimeField(auto_now_add=True)
     update_date = models.DateTimeField(auto_now_add=True)
     class Meta:
@@ -41,6 +42,7 @@ class Assets(models.Model):
             ("can_change_assets", "更改资产权限"),
             ("can_add_assets", "添加资产权限"),
             ("can_delete_assets", "删除资产权限"),
+            ("can_dumps_assets", "导出资产权限"),
         ) 
         verbose_name = '总资产表'  
         verbose_name_plural = '总资产表'  
@@ -52,6 +54,7 @@ class Server_Assets(models.Model):
     hostname = models.CharField(max_length=100,blank=True,null=True)  
     username = models.CharField(max_length=100,blank=True,null=True)  
     passwd = models.CharField(max_length=100,blank=True,null=True)  
+    sudo_passwd = models.CharField(max_length=100,blank=True,null=True)
     keyfile =  models.SmallIntegerField(blank=True,null=True)#FileField(upload_to = './upload/key/',blank=True,null=True,verbose_name='密钥文件')
     port = models.DecimalField(max_digits=6,decimal_places=0,blank=True,null=True)
     line = models.SmallIntegerField(blank=True,null=True)
@@ -84,7 +87,11 @@ class Server_Assets(models.Model):
 class Network_Assets(models.Model):
     assets = models.OneToOneField('Assets')
     bandwidth =  models.CharField(max_length=100,blank=True,null=True,verbose_name='背板带宽') 
-    ip = models.CharField(max_length=100,blank=True,null=True,verbose_name='管理ip')
+    ip = models.CharField(unique=True,max_length=100,blank=True,null=True,verbose_name='管理ip')
+    username = models.CharField(max_length=100,blank=True,null=True)
+    passwd = models.CharField(max_length=100,blank=True,null=True) 
+    sudo_passwd = models.CharField(max_length=100,blank=True,null=True) 
+    port = models.DecimalField(max_digits=6,decimal_places=0,blank=True,null=True)    
     port_number = models.SmallIntegerField(blank=True,null=True,verbose_name='端口个数')
     firmware =  models.CharField(max_length=100,blank=True,null=True,verbose_name='固件版本')
     cpu = models.CharField(max_length=100,blank=True,null=True,verbose_name='cpu型号')
@@ -162,15 +169,15 @@ class NetworkCard_Assets(models.Model):
         unique_together = (("assets", "macaddress"))       
         
 class Project_Assets(models.Model):
-    '''项目资产表'''
+    '''产品线资产表'''
     project_name = models.CharField(max_length=100,unique=True) 
     class Meta:
         db_table = 'opsmanage_project_assets'
         permissions = (
-            ("can_read_project_assets", "读取项目资产权限"),
-            ("can_change_project_assets", "更改项目资产权限"),
-            ("can_add_project_assets", "添加项目资产权限"),
-            ("can_delete_project_assets", "删除项目资产权限"),              
+            ("can_read_project_assets", "读取产品线权限"),
+            ("can_change_project_assets", "更改产品线权限"),
+            ("can_add_project_assets", "添加产品线权限"),
+            ("can_delete_project_assets", "删除产品线权限"),              
         )  
         verbose_name = '项目资产表'  
         verbose_name_plural = '项目资产表' 
@@ -261,8 +268,10 @@ class Project_Config(models.Model):
                           ('tag',u'tag'),
                           )  
     project = models.ForeignKey('Project_Assets',related_name='project_config', on_delete=models.CASCADE) 
-    project_env = models.CharField(max_length=50,verbose_name='项目环境',default=None) 
+    project_env = models.CharField(max_length=50,verbose_name='项目环境',default=None)
+    project_name =  models.CharField(max_length=100,verbose_name='项目名称',default=None)
     project_service = models.SmallIntegerField(verbose_name='业务类型')
+    project_type = models.CharField(max_length=10,verbose_name='编译类型')
     project_local_command = models.TextField(blank=True,null=True,verbose_name='部署服务器要执行的命令',default=None)
     project_repo_dir = models.CharField(max_length=100,verbose_name='本地仓库目录',default=None)
     project_dir = models.CharField(max_length=100,verbose_name='代码目录',default=None)
@@ -281,17 +290,17 @@ class Project_Config(models.Model):
     class Meta:
         db_table = 'opsmanage_project_config'
         permissions = (
-            ("can_read_project_config", "读取项目权限"),
-            ("can_change_project_config", "更改项目权限"),
-            ("can_add_project_config", "添加项目权限"),
-            ("can_delete_project_config", "删除项目权限"),               
+            ("can_read_project_config", "读取项目部署权限"),
+            ("can_change_project_config", "更改项目部署权限"),
+            ("can_add_project_config", "添加项目部署权限"),
+            ("can_delete_project_config", "删除项目部署权限"),               
         )
-        unique_together = (("project_env", "project"))
+        unique_together = (("project_env", "project","project_name"))
         verbose_name = '项目管理表'  
         verbose_name_plural = '项目管理表'  
 
 class Log_Project_Config(models.Model):
-    project_id = models.IntegerField(verbose_name='资产类型id',blank=True,null=True,default=None)
+    project_id = models.IntegerField(verbose_name='项目id',blank=True,null=True,default=None)
     project_user = models.CharField(max_length=50,verbose_name='操作用户',default=None)
     project_name = models.CharField(max_length=100,verbose_name='名称',default=None)
     project_content = models.CharField(max_length=100,default=None)
@@ -308,55 +317,14 @@ class Project_Number(models.Model):
     dir =  models.CharField(max_length=100,verbose_name='项目目录',default=None)
     class Meta:
         db_table = 'opsmanage_project_number'
-        permissions = (
-            ("can_read_project_number", "读取项目成员权限"),
-            ("can_change_project_number", "更改项目成员权限"),
-            ("can_add_project_number", "添加项目成员权限"),
-            ("can_delete_project_number", "删除项目成员权限"),             
-        )
         unique_together = (("project", "server"))
         verbose_name = '项目成员表'  
         verbose_name_plural = '项目成员表' 
         
     def __unicode__(self):
-        return '%s' % ( self.server)         
+        return '%s,%s' % ( self.server,self.dir)         
         
-class Project_Order(models.Model):  
-    STATUS = (
-              (0,'已通过'),
-              (1,'已拒绝'),
-              (2,'审核中'),
-              (3,'已部署'),
-              ) 
-    LEVEL = (
-             (0,'非紧急'),
-             (1,'紧急'),
-             )
-    order_user = models.CharField(max_length=30,verbose_name='工单申请人')
-    order_project = models.ForeignKey('Project_Config',verbose_name='项目id')
-    order_subject = models.CharField(max_length=200,verbose_name='工单申请主题')   
-    order_content =  models.TextField(verbose_name='工单申请内容') 
-    order_branch =  models.CharField(max_length=50,blank=True,null=True,verbose_name='分支版本')
-    order_comid =  models.CharField(max_length=100,blank=True,null=True,verbose_name='版本id')
-    order_tag =  models.CharField(max_length=50,blank=True,null=True,verbose_name='标签')
-    order_audit = models.CharField(max_length=30,verbose_name='部署指派人') 
-    order_status = models.IntegerField(choices=STATUS,default='审核中',verbose_name='工单状态') 
-    order_level = models.IntegerField(choices=LEVEL,default='非紧急',verbose_name='工单紧急程度')
-    order_cancel = models.TextField(blank=True,null=True,verbose_name='取消原因') 
-    create_time = models.DateTimeField(auto_now_add=True,blank=True,null=True,verbose_name='工单发布时间')
-    modify_time = models.DateTimeField(auto_now=True,blank=True,verbose_name='工单最后修改时间')
-    '''自定义权限'''
-    class Meta:
-        db_table = 'opsmanage_project_order'
-        permissions = (
-            ("can_read_project_order", "读取项目部署权限"),
-            ("can_change_project_order", "更改项目部署权限"),
-            ("can_add_project_order", "添加项目部署权限"),
-            ("can_delete_project_order", "删除项目部署权限"),            
-        )
-        unique_together = (("order_project", "order_subject","order_user"))
-        verbose_name = '项目部署工单表'  
-        verbose_name_plural = '项目部署工单表'         
+      
                         
         
 class Cron_Config(models.Model): 
@@ -501,7 +469,45 @@ class Ansible_Playbook_Number(models.Model):
     def __unicode__(self):
         return '%s' % ( self.playbook_server)    
     
-     
+class Ansible_Inventory(models.Model):    
+    name = models.CharField(max_length=200,unique=True,verbose_name='资产名称')
+    desc = models.CharField(max_length=200,verbose_name='功能描述')
+    user =  models.SmallIntegerField(verbose_name='创建人')
+    create_time = models.DateTimeField(auto_now_add=True,blank=True,null=True,verbose_name='创建时间') 
+    class Meta:
+        db_table = 'opsmanage_ansible_inventory'
+        permissions = (
+            ("can_read_ansible_inventory", "读取Ansible资产权限"),
+            ("can_change_ansible_inventory", "更改Ansible资产权限"),
+            ("can_add_ansible_inventory", "添加Ansible资产权限"),
+            ("can_delete_ansible_inventory", "删除Ansible资产权限"),             
+        )
+        verbose_name = 'Ansible资产表'  
+        verbose_name_plural = 'Ansible资产表'
+
+# class Log_Ansible_Inventory(models.Model): 
+#     ans_user = models.CharField(max_length=50,verbose_name='使用用户',default=None)
+#     ans_content = models.CharField(max_length=500,default=None)
+#     create_time = models.DateTimeField(auto_now_add=True,blank=True,null=True,verbose_name='操作时间')
+#     class Meta:
+#         db_table = 'opsmanage_log_ansible_inventory'
+
+class Ansible_Inventory_Groups(models.Model):    
+    inventory = models.ForeignKey('Ansible_Inventory',related_name='inventory_group', on_delete=models.CASCADE)
+    group_name =  models.CharField(max_length=100,verbose_name='group name')
+    ext_vars = models.TextField(verbose_name='组外部变量',blank=True,null=True)
+    class Meta:
+        db_table = 'opsmanage_ansible_inventory_groups'
+        verbose_name = 'Ansible资产成员表'  
+        verbose_name_plural = 'Ansible资产成员表'
+        unique_together = (("inventory", "group_name"))
+
+class Ansible_Inventory_Groups_Server(models.Model):
+    groups = models.ForeignKey('Ansible_Inventory_Groups',related_name='inventory_group_server', on_delete=models.CASCADE)
+    server = models.SmallIntegerField(verbose_name='服务器')
+    class Meta:
+        db_table = 'opsmanage_ansible_inventory_groups_servers'
+        unique_together = (("groups", "server"))
     
 class Global_Config(models.Model):
     ansible_model = models.SmallIntegerField(verbose_name='是否开启ansible模块操作记录',blank=True,null=True)
@@ -512,7 +518,7 @@ class Global_Config(models.Model):
     server = models.SmallIntegerField(verbose_name='是否开启服务器命令记录',blank=True,null=True)
     email = models.SmallIntegerField(verbose_name='是否开启邮件通知',blank=True,null=True)
     webssh = models.SmallIntegerField(verbose_name='是否开启WebSSH',blank=True,null=True)
-    sql = models.SmallIntegerField(verbose_name='是否开启WebSSH',blank=True,null=True)
+    sql = models.SmallIntegerField(verbose_name='是否开启SQL更新通知',blank=True,null=True)
     class Meta:
         db_table = 'opsmanage_global_config'
     
@@ -595,10 +601,16 @@ class DataBase_Server_Config(models.Model):
                 ('test',u'测试环境'),
                 ('prod',u'生产环境'),
                 )
+    mode = (
+            ('1',u'单例'),
+            ('2',u'主从'),
+            ('3',u'pxc'),
+            )    
     db_env = models.CharField(choices=env_type,max_length=10,verbose_name='环境类型',default=None)
     db_type = models.CharField(max_length=10,verbose_name='数据库类型',default=None)
     db_name = models.CharField(max_length=100,verbose_name='数据库名',blank=True,null=True)
     db_host = models.CharField(max_length=100,verbose_name='数据库地址')
+    db_mode = models.SmallIntegerField(choices=mode,verbose_name='架构类型',default=1)
     db_user = models.CharField(max_length=100,verbose_name='用户')
     db_passwd = models.CharField(max_length=100,verbose_name='密码')
     db_port = models.IntegerField(verbose_name='端口')
@@ -614,66 +626,13 @@ class DataBase_Server_Config(models.Model):
             ("can_add_database_server_config", "添加数据库信息表权限"),
             ("can_delete_database_server_config", "删除数据库信息表权限"),              
         )
-        unique_together = (("db_port", "db_host","db_env"))
+        unique_together = (("db_port", "db_host","db_env","db_name"))
         verbose_name = '数据库信息表'  
         verbose_name_plural = '数据库信息表'
   
 
     
-class SQL_Audit_Order(models.Model):
-    statu_type = (
-                  (1,u'待授权'),
-                  (2,u'已执行'),
-                  (3,u'已回滚'),
-                  (4,u'已撤回'),
-                  (6,u'已授权'),
-                  (7,u'已失败'),
-                ) 
-    order_desc = models.CharField(max_length=100,blank=True,null=True,verbose_name='工单用途')
-    order_apply = models.SmallIntegerField(verbose_name='工单申请人id')
-    order_db = models.ForeignKey('DataBase_Server_Config',verbose_name='数据库id')
-    order_sql =  models.TextField(verbose_name='待审核SQL内容',blank=True,null=True) 
-    order_executor = models.SmallIntegerField(verbose_name='工单执行人id')
-    order_status = models.SmallIntegerField(choices=statu_type,default='审核中',verbose_name='工单状态') 
-    order_cancel = models.TextField(blank=True,null=True,verbose_name='取消原因') 
-    order_type = models.CharField(max_length=10,blank=True,null=True,verbose_name='工单类型') 
-    order_file = models.FileField(upload_to = './sql/',verbose_name='sql脚本路径')
-    create_time = models.DateTimeField(auto_now_add=True,blank=True,null=True,verbose_name='工单发布时间')
-    modify_time = models.DateTimeField(auto_now=True,blank=True,verbose_name='工单最后修改时间')  
-    class Meta:
-        db_table = 'opsmanage_sql_audit_order'
-        permissions = (
-            ("can_read_sql_audit_order", "读取SQL审核工单权限"),
-            ("can_change_sql_audit_order", "更改SQL审核工单权限"),
-            ("can_add_sql_audit_order", "添加SQL审核工单权限"),
-            ("can_delete_sql_audit_order", "删除SQL审核工单权限"),              
-        )
-        verbose_name = 'SQL审核工单表'  
-        verbose_name_plural = 'SQL审核工单表'      
 
-class SQL_Order_Execute_Result(models.Model):
-    '''
-        errlevel: 返回值为非0的情况下，说明是有错的。1表示警告，不影响执行，2表示严重错误，必须修改。
-        stagestatus: 用来表示检查及执行的过程是成功还是失败，如果审核成功，则返回 Audit completed。如果执行成功则返回Execute Successfully，否则返回Execute failed.
-                                                                        如果备份成功，则在后面追加Backup successfully，否则追加Backup failed，这个列的返回信息是为了将结果集直接输出而设置的.
-                            参考文档：http://mysql-inception.github.io/inception-document/results/                                                                
-    '''
-    order = models.ForeignKey('SQL_Audit_Order',verbose_name='orderid')
-    stage = models.CharField(max_length= 20)
-    errlevel = models.IntegerField(verbose_name='错误信息')
-    stagestatus = models.CharField(max_length=40)
-    errormessage = models.TextField(blank=True,null=True,verbose_name='错误信息')
-    sqltext = models.TextField(blank=True,null=True,verbose_name='SQL内容')
-    affectrow = models.IntegerField(blank=True,null=True,verbose_name='影响行数')
-    sequence = models.CharField(max_length=30,db_index=True,verbose_name='序号')
-    backup_db = models.CharField(max_length=100,blank=True,null=True,verbose_name='Inception备份服务器')
-    execute_time = models.CharField(max_length=20,verbose_name='语句执行时间')
-    sqlsha = models.CharField(max_length=50,blank=True,null=True,verbose_name='是否启动OSC')
-    create_time = models.DateTimeField(auto_now_add=True,db_index=True)
-    class Meta:
-        db_table = 'opsmanage_sql_execute_result'
-        verbose_name = 'SQL工单执行记录表'  
-        verbose_name_plural = 'SQL工单执行记录表' 
 
 class SQL_Execute_Histroy(models.Model):
     exe_user = models.CharField(max_length= 100,verbose_name='执行人')
@@ -690,8 +649,8 @@ class SQL_Execute_Histroy(models.Model):
             ("can_add_sql_execute_histroy", "添加SQL执行历史表权限"),
             ("can_delete_sql_execute_histroy", "删除SQL执行历史表权限"),              
         )
-        verbose_name = 'SQL审核工单表'  
-        verbose_name_plural = 'SQL审核工单表'     
+        verbose_name = 'SQL执行历史记录表'  
+        verbose_name_plural = 'SQL执行历史记录表'     
         
 class Custom_High_Risk_SQL(models.Model):
     sql = models.CharField(max_length=200,unique=True,verbose_name='SQL内容') 
@@ -700,7 +659,7 @@ class Custom_High_Risk_SQL(models.Model):
         permissions = (
             ("can_read_custom_high_risk_sql", "读取高危SQL表权限"),
             ("can_change_custom_high_risk_sql", "更改高危SQL表权限"),
-            ("can_add_sql_custom_high_risk_sql", "添加高危SQL表权限"),
+            ("can_add_custom_high_risk_sql", "添加高危SQL表权限"),
             ("can_delete_custom_high_risk_sql", "删除高危SQL表权限"),              
         )
         verbose_name = '自定义高危SQL表'  

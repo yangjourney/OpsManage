@@ -12,6 +12,7 @@ from rest_framework.decorators import api_view
 from OpsManage.tasks.assets import recordAssets
 from django.contrib.auth.decorators import permission_required
 from OpsManage.utils.logger import logger
+from django.http import JsonResponse
 
 
 
@@ -26,7 +27,7 @@ def project_list(request,format=None):
         serializer = serializers.ProjectSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save() 
-            recordAssets.delay(user=str(request.user),content="添加项目名称：{project_name}".format(project_name=request.data.get("project_name")),type="project",id=serializer.data.get('id'))
+            recordAssets.delay(user=str(request.user),content="添加产品线名称：{project_name}".format(project_name=request.data.get("project_name")),type="project",id=serializer.data.get('id'))
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -46,7 +47,7 @@ def project_detail(request, id,format=None):
         old_name = snippet.project_name
         if serializer.is_valid():
             serializer.save()
-            recordAssets.delay(user=str(request.user),content="修改项目为：{old_name} -> {project_name}".format(old_name=old_name,project_name=request.data.get("project_name")),type="project",id=id)
+            recordAssets.delay(user=str(request.user),content="修改产品线为：{old_name} -> {project_name}".format(old_name=old_name,project_name=request.data.get("project_name")),type="project",id=id)
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
      
@@ -534,4 +535,37 @@ def asset_net_detail(request, id,format=None):
             recordAssets.delay(user=str(request.user),content="删除网络设备资产：{ip}".format(ip=snippet.ip),type="net",id=id)
         except Assets.DoesNotExist:
             pass       
-        return Response(status=status.HTTP_204_NO_CONTENT)   
+        return Response(status=status.HTTP_204_NO_CONTENT) 
+    
+
+@api_view(['GET', 'POST'])
+@permission_required('OpsManage.can_change_assets',raise_exception=True)
+def asset_info(request, id,format=None):
+    """
+    Retrieve, update or delete a server assets instance.
+    """
+    try:
+        assets = Assets.objects.get(id=id)
+    except Assets.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+ 
+    if request.method == 'POST':
+        dataList = []
+        try:
+            if assets.assets_type in ['server','vmser']:
+                dataList.append({"name":'CPU型号',"value":assets.server_assets.cpu})
+                dataList.append({"name":'CPU个数',"value":assets.server_assets.vcpu_number})
+                dataList.append({"name":'硬盘容量',"value":str(int(assets.server_assets.disk_total)/1024)+'GB'})
+                dataList.append({"name":'内存容量',"value":str(int(assets.server_assets.ram_total)/1024)+'GB'})
+                dataList.append({"name":'操作系统',"value":assets.server_assets.system})
+                dataList.append({"name":'内核版本',"value":assets.server_assets.kernel})
+                dataList.append({"name":'主机名',"value":assets.server_assets.hostname})
+            else:
+                dataList.append({"name":'CPU型号',"value":assets.network_assets.cpu})
+                dataList.append({"name":'内存容量',"value":assets.network_assets.stone})
+                dataList.append({"name":'背板带宽',"value":assets.network_assets.bandwidth})
+                dataList.append({"name":'端口总数',"value":assets.network_assets.port_number})
+        except Exception ,ex:
+            logger.warn(msg="获取资产信息失败: {ex}".format(ex=ex))
+        return JsonResponse({"code":200,"msg":"success","data":dataList})   
+            

@@ -22,7 +22,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ''' celery config '''
 djcelery.setup_loader()
-BROKER_URL = 'redis://192.168.88.233:6379/4'
+BROKER_URL = 'redis://192.168.88.233:6379/4' 
 CELERY_RESULT_BACKEND = 'djcelery.backends.database.DatabaseBackend'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TASK_SERIALIZER='pickle'
@@ -76,12 +76,12 @@ CHANNEL_LAYERS = {
     "default": {
        "BACKEND": "asgi_redis.RedisChannelLayer",  # use redis backend
        "CONFIG": {
-           "hosts": [("localhost", 6379)],  # set redis address
-           "channel_capacity": {
+            "hosts": [("localhost", 6379)],  #无密码方式
+            "channel_capacity": {
                                    "http.request": 1000,
                                    "websocket.send*": 10000,
                                 },
-           "capacity": 10000,           
+            "capacity": 10000,           
            },
        "ROUTING": "OpsManage.routing.channel_routing",  # load routing from our routing.py file
        },
@@ -103,7 +103,9 @@ INSTALLED_APPS = (
     'elfinder',
     'storages',
     'wiki',
+    'orders',
     'api',
+    'filemanage',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -191,6 +193,8 @@ SFTP_CONF = {
              'password':'welliam',
              'timeout':30
              }  #修改成能sftp登陆OpsManage的账户
+
+WORKSPACES = '/var/lib/opsmanage/workspaces/' 
 
 LOGIN_URL = '/login'
 
