@@ -406,7 +406,12 @@
 												 </div>
 											</div>	
 											</div>
-										
+											<div class="form-group">
+												 <label class="col-sm-2 control-label">备注</label>
+												 <div class="col-sm-6">
+												 	<textarea type="text" class="form-control" id="asset_mark" name="asset_mark" placeholder="备注" value="" class="input-xlarge"></textarea>
+												 </div>
+											</div>										
 											</fieldset>
 											<div class="form-group">
 											<label class="col-sm-3 control-label"></label>
@@ -468,6 +473,11 @@
 			var value = form[i].value;
 			if (name.length == 0)
 				continue;
+			try {
+				value  = value.replace(/\n/g,'<br/>');
+			}catch (e) {
+				alert(e);
+			}			
 			if (value.length == 0) {
 				if ((typeof filler != 'string') || (filler.length == 0))
 					continue;

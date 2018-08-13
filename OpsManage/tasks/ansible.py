@@ -33,7 +33,7 @@ def AnsibleScripts(**kw):
                 logId = AnsibleRecord.Model.insert(user='celery',ans_model='script',ans_server=','.join(sList),ans_args=filePath)
             sList, resource = AssetsSource().queryAssetsByIp(ipList=sList)        
             ANS = ANSRunner(resource,redisKey=None,logId=logId)
-            ANS.run_model(host_list=sList,module_name='script',module_args=filePath)
+            ANS.run_model(host_list=sList,module_name='script',module_args="{filePath} {args}".format(filePath=filePath,args=script.script_args))
             return ANS.get_model_result()
     except Exception,e:
         print e
@@ -46,7 +46,7 @@ def AnsiblePlayBook(**kw):
     try:
         if kw.has_key('playbook_id'):
             playbook = Ansible_Playbook.objects.get(id=kw.get('playbook_id'))
-            filePath = os.getcwd()  + str(playbook.playbook_file)
+            filePath = os.getcwd() + '/upload/' + str(playbook.playbook_file)
             if kw.has_key('hosts'):
                 try:
                     sList = list(kw.get('hosts'))

@@ -278,10 +278,7 @@
 													 <div class="col-sm-6">
 													 	<input type="text" class="form-control" name="server_hostname" placeholder="Hostname"  class="input-xlarge" value="{{ asset_body.hostname|default:"" }}" />
 													 </div>
-												</div>					
-												
-						
-												
+												</div>																												
 							
 											</div>
 											<div class="form-group">
@@ -392,7 +389,13 @@
 															{% endfor %}		
 													</select>					 						 	  	
 												</div>
-											</div>	 					 											
+											</div>	 
+											<div class="form-group">
+												 <label class="col-sm-2 control-label">备注</label>
+												 <div class="col-sm-6">
+												 	<textarea type="text" class="form-control" id="asset_mark" name="asset_mark" placeholder="备注" value="" class="input-xlarge">{{ asset_main.mark|default:"" }}</textarea>
+												 </div>
+											</div>																 											
 											</div>
 											</fieldset>
 											
@@ -477,7 +480,13 @@
 												 <div class="col-sm-6">						
 												 	<textarea  class="form-control" rows="5" name="net_configure_detail" placeholder="配置说明"  id="configure_detail" value="{{ asset_body.configure_detail|default:"" }}"></textarea>
 												 </div>
-											</div>	
+											</div>
+											<div class="form-group">
+												 <label class="col-sm-2 control-label">备注</label>
+												 <div class="col-sm-6">
+												 	<textarea  class="form-control" id="asset_mark" name="asset_mark" placeholder="备注" value="" class="input-xlarge">{{ asset_main.mark|default:"" }}</textarea>
+												 </div>
+											</div>													
 											</div>
 										{% endif %}
 											</fieldset>
@@ -534,7 +543,8 @@ function addAssetsData(obj) {
 		var name = form[i].name;
 		var value = form[i].value;
 		var assetStart = name.indexOf("asset_");
-		if (assetStart==0 && value.length == 0){
+		if (assetStart==0 && value.length == 0 && name !=="asset_mark"){
+			$("[name='"+ name +"']").parent().addClass("has-error");
 			window.wxc.xcConfirm("请注意必填项不能为空~", window.wxc.xcConfirm.typeEnum.error);
 			return false;
 		}
@@ -588,6 +598,10 @@ function oBtAuthType() {
 }	
 
 
+$(document).ready(function() {
+    var mark = $('#asset_mark').val().replace(/<br\/>/g, "\n");
+    $('#asset_mark').text(mark)
+}); 
 
 
 function getFormData (form, filler) {
@@ -599,6 +613,11 @@ function getFormData (form, filler) {
 		var value = form[i].value;
 		if (name.length == 0)
 			continue;
+		try {
+			value  = value.replace(/\n/g,'<br/>');
+		}catch (e) {
+			alert(e);
+		}
 		if (value.length == 0) {
 			if ((typeof filler != 'string') || (filler.length == 0))
 				continue;
@@ -609,7 +628,8 @@ function getFormData (form, filler) {
 		var serverStart = name.indexOf("server_");
 		var netStart = name.indexOf("net_");
 		if (assetStart==0){
-			var asz = "assets."+name.replace("asset_","")+" = '" + value + "'";
+			var asz = "assets." + name.replace("asset_","")+" = '" + value + "'"
+			
 			try {
 				eval(asz);
 			} catch (e) {
