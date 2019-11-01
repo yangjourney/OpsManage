@@ -1,6 +1,6 @@
 #!/usr/bin/env python  
 # _#_ coding:utf-8 _*_ 
-import uuid,os,json
+import uuid,os,json,ast
 from django.http import HttpResponseRedirect,JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -216,7 +216,7 @@ def apps_list(request):
         return render(request,'apps/apps_list.html',{"user":request.user,"playbookList":playbookList,})      
 
 @login_required()
-@permission_required('OpsManage.can_add_ansible_playbook',login_url='/noperm/')
+@permission_required('OpsManage.can_read_ansible_playbook',login_url='/noperm/')
 def apps_playbook_file(request,pid):
     try:
         playbook = Ansible_Playbook.objects.get(id=pid)
@@ -504,7 +504,7 @@ def ansible_log_view(request,model,id):
     
     
 @login_required()
-@permission_required('OpsManage.can_read_ansible_script',login_url='/noperm/')
+@permission_required('OpsManage.can_add_ansible_script',login_url='/noperm/')
 def apps_script_online(request):
     if request.method == "GET":
         serverList = AssetsSource().serverList()
@@ -759,7 +759,7 @@ def ansible_inventory_groups(request,id):
         except Exception,ex:  
             return JsonResponse({'msg':"获取动态资产组失败: {ex}".format(ex=ex),"code":500,'data':[]})
         try:
-            ext_vars = eval(request.POST.get('ext_vars'))
+            ext_vars = ast.literal_eval(request.POST.get('ext_vars'))
         except Exception,ex:
             ext_vars = None
             logger.error(msg="添加资产组，转化外部变量失败: {ex}".format(ex=str(ex)))
@@ -800,7 +800,7 @@ def ansible_inventory_groups_server(request,id):
         return JsonResponse({'msg':"查询成功","code":200,'data':dataList})   
     elif request.method == "POST":
         try:
-            if request.POST.get('ext_vars',None):ext_vars = eval(request.POST.get('ext_vars',None))
+            if request.POST.get('ext_vars',None):ext_vars = ast.literal_eval(request.POST.get('ext_vars',None))
             else:ext_vars = None
         except Exception,ex:
             logger.error(msg="修改资产组失败，外部变量格式错误: {ex}".format(ex=str(ex)))

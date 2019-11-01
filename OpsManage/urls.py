@@ -17,7 +17,7 @@ Including another URLconf
 from django.conf.urls import url,include
 from django.contrib import admin
 from OpsManage.views import (index,assets,cron,deploy,
-                             ansible,users,wssh,task,
+                             ansible,users,task,
                              database,elfinder)
 from OpsManage.views.elfinder import finder
 from rest_framework.urlpatterns import format_suffix_patterns
@@ -94,9 +94,6 @@ urlpatterns = [
     url(r'^user/center/$',users.user_center),
     url(r'^user/server/(?P<uid>[0-9]+)/$',users.user_server),
     url(r'^group/(?P<gid>[0-9]+)/$',users.group),
-    url(r'^webssh/(?P<sid>[0-9]+)/$',wssh.wssh),
-    url(r'^roles/',elfinder.finder),
-    url(r'^elfinder/',include('elfinder.urls')),
     url(r'^wiki/',include('wiki.urls')),
     url(r'^order/',include('orders.urls')),
     url(r'^api/',include('api.urls')),
